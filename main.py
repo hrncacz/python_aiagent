@@ -3,6 +3,11 @@ import os
 from dotenv import load_dotenv
 from google import genai
 from google.genai import types
+from functions.get_file_content import schema_get_file_content, get_file_content
+from functions.get_files_info import schema_get_files_info, get_files_info
+from functions.run_python_file import schema_run_python_file, run_python_file
+from functions.write_file import schema_write_file, write_file
+from functions.call_function import call_function
 
 
 def main():
@@ -22,62 +27,6 @@ When a user asks a question or makes a request, make a function call plan. You c
 
 All paths you provide should be relative to the working directory. You do not need to specify the working directory in your function calls as it is automatically injected for security reasons.
 """
-    schema_get_files_info = types.FunctionDeclaration(
-        name="get_files_info",
-        description="Lists files in the specified directory along with their sizes, constrained to the working directory.",
-        parameters=types.Schema(
-            type=types.Type.OBJECT,
-            properties={
-                "directory": types.Schema(
-                    type=types.Type.STRING,
-                    description="The directory to list files from, relative to the working directory. If not provided, lists files in the working directory itself.",
-                ),
-            },
-        ),
-    )
-    schema_get_file_content = types.FunctionDeclaration(
-        name="get_file_content",
-        description="Getting content of a selected file up to 10000 characters.",
-        parameters=types.Schema(
-            type=types.Type.OBJECT,
-            properties={
-                "file_path": types.Schema(
-                    type=types.Type.STRING,
-                    description="Path to a specific file, relative to working directory. If not providet function will end with error message"
-                )
-            }
-        )
-    )
-    schema_run_python_file = types.FunctionDeclaration(
-        name="run_python_file",
-        description="Run specified python file.",
-        parameters=types.Schema(
-            type=types.Type.OBJECT,
-            properties={
-                "file_path": types.Schema(
-                    type=types.Type.STRING,
-                    description="Path to a specific file, relative to working directory. If not providet function will end with error message"
-                )
-            }
-        )
-    )
-    schema_write_file = types.FunctionDeclaration(
-        name="write_file",
-        description="Write to a specified file new content.",
-        parameters=types.Schema(
-            type=types.Type.OBJECT,
-            properties={
-                "file_path": types.Schema(
-                    type=types.Type.STRING,
-                    description="Path to a specific file, relative to working directory. If not providet function will end with error message"
-                ),
-                "content": types.Schema(
-                    type=types.Type.STRING,
-                    description="Content which should be written into existing or a new file."
-                )
-            }
-        )
-    )
     available_functions = types.Tool(
         function_declarations=[
             schema_get_files_info,
@@ -94,7 +43,9 @@ All paths you provide should be relative to the working directory. You do not ne
         role="user", parts=[types.Part(text=user_prompt)])]
     response = client.models.generate_content(
         model=model, contents=messages, config=types.GenerateContentConfig(tools=[available_functions], system_instruction=system_prompt),)
-    if "--verbose" in sys.argv:
+    verbose = False
+    if verbose:
+        verbose = True
         print(f"User prompt: {user_prompt}")
         print(f"Prompt tokens: {response.usage_metadata.prompt_token_count}")
         print(f"Response tokens: {
@@ -103,6 +54,13 @@ All paths you provide should be relative to the working directory. You do not ne
     for function_call_part in function_call_parts:
         print(f"Calling function: {
               function_call_part.name}({function_call_part.args})")
+        function_call_result = call_function(
+            function_call_part, verbose=verbose)
+        if not function_call_result.parts[0].function_response.response:
+            raise Exception("Catastrphic failure!")
+        print(
+            f"-> {function_call_result.parts[0].function_response.response}")
+
     if response.text:
         print(f"Response: {response.text}")
 

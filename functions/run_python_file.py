@@ -1,5 +1,7 @@
 import os
 import subprocess
+from google import genai
+from google.genai import types
 
 
 def run_python_file(working_directory, file_path):
@@ -23,3 +25,18 @@ def run_python_file(working_directory, file_path):
             return f"Process exited with code {scpe.returncode}"
         except Exception as e:
             return f"Error: executing Python file: {e}"
+
+
+schema_run_python_file = types.FunctionDeclaration(
+    name="run_python_file",
+    description="Run specified python file.",
+    parameters=types.Schema(
+        type=types.Type.OBJECT,
+        properties={
+                "file_path": types.Schema(
+                    type=types.Type.STRING,
+                    description="Path to a specific file, relative to working directory. If not providet function will end with error message"
+                )
+        }
+    )
+)
